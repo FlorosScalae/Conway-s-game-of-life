@@ -1,0 +1,424 @@
+﻿<!DOCTYPE html>
+<html>
+<body>
+    <style>
+        #canvas {
+            position: absolute;
+            top: 10px;
+            left: 220px;
+            right: 0;
+            bottom: 10px;
+            border: 1px solid #000000;
+        }
+
+        #controlBox {
+            top:10px;
+            position: absolute;
+            top: 0px;
+            width: 210px;
+        }
+
+
+        .slidecontainer {
+            width: 100%;
+        }
+
+        .slider {
+            -webkit-appearance: none;
+            height: 25px;
+            width: 200px;
+            background: #d3d3d3;
+            outline: none;
+            opacity: 0.7;
+            -webkit-transition: .2s;
+            transition: opacity .2s;
+        }
+
+            .slider:hover {
+                opacity: 1;
+            }
+
+            .slider::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 25px;
+                height: 25px;
+                background: #04AA6D;
+                cursor: pointer;
+            }
+
+            .slider::-moz-range-thumb {
+                width: 25px;
+                height: 25px;
+                background: #04AA6D;
+                cursor: pointer;
+            }
+    </style>
+    <canvas id="canvas" width="1780" height="900"></canvas>
+
+    <div id="controlBox">
+        <p id="gameSpeed"><b>Game Speed: </b></p>
+        <input type="range" min="1" max="50" value="25" class="slider" id="gameSpeedSlider">
+        <button type="button" onclick="gameBoard.changeState()">Play/Pause</button>
+        <button type="button" onclick="gameBoard.clearBoard()">Clear Board</button>
+        <button type="button" onclick="gameBoard.randomiseBoard()">Randomise Board</button>
+        <button type="button" onclick="gameBoard.iterateBoard()">Iterate Board</button>
+        <p id="test"></p>
+    </div>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script>
+        var canvas = document.getElementById("canvas");
+        var context = canvas.getContext("2d");
+
+        //holds variables and methods of the "board" that cells are located on
+        class board {
+            constructor(rows, columns) {
+                this.rows = rows;
+                this.columns = columns;
+                this.grid = [];
+                this.state = "play"
+                this.iterationCounter = 0;
+                this.iterationTime = gameSpeedSlider.value;
+                this.initialiseBoard();
+            }
+
+            //initialise the board with zeroes
+            initialiseBoard() {
+                for (var y = 0; y < this.rows; y++) {
+                    let currentRow = [];
+
+                    for (var x = 0; x < this.columns; x++) {
+                        currentRow.push(0);
+                    }
+
+                    this.grid.push(currentRow);
+                }
+            }
+
+            //set all board cells to zero (dead)
+            clearBoard() {
+                for (var y = 0; y < this.rows; y++) {
+                    for (var x = 0; x < this.columns; x++) {
+                        this.grid[y][x] = 0;
+                    }
+                }
+            }
+
+            //randomise the value of all cells on the board
+            randomiseBoard() {
+                for (var y = 0; y < this.rows; y++) {
+                    for (var x = 0; x < this.columns; x++) {
+                        this.grid[y][x] = Math.round(Math.random());
+                    }
+                }
+            }
+
+            //update the board state if the required number of frames have elapsed and the board isn't boared
+            updateBoard() {
+                if (this.state != "paused") {
+                    if (this.iterationCounter < this.iterationTime) {
+                        this.iterationCounter += 1;
+                    }
+
+                    else {
+                        this.iterationCounter = 0;
+                        this.iterateBoard();
+                    }
+                }
+            }
+
+            //iterate through each cell in the board set the values accordingly 
+            iterateBoard() {
+                let tempBoard = []
+
+                for (var y = 0; y < this.rows; y++) {
+                    let currentRow = [];
+
+                    for (var x = 0; x < this.columns; x++) {
+                        currentRow.push(0);
+                    }
+
+                    tempBoard.push(currentRow);
+                }
+
+                for (var y = 0; y < this.rows; y++) {
+                    for (var x = 0; x < this.columns; x++) {
+                        tempBoard[y][x] = this.getCellState(y, x);
+                    }
+                }
+                this.grid = tempBoard;
+            }
+
+            //determine whether a cell should be alive or dead
+            getCellState(cellRow, cellCol) {
+                let cellContents = this.grid[cellRow][cellCol]
+                let neighbours = 0
+                let newRow = 0;
+                let newCol = 0;
+
+                for (let deltaRow = -1; deltaRow < 2; deltaRow++) {
+                    newRow = cellRow + deltaRow;
+                    if (newRow >= this.rows || newRow < 0) {
+                        continue
+                    }
+
+                    for (let deltaCol = -1; deltaCol < 2; deltaCol++) {
+                        newCol = cellCol + deltaCol;
+                        if (newCol >= this.columns || newCol < 0) {
+                            continue
+                        }
+
+                        if (cellRow == newRow && cellCol == newCol) {
+                            continue
+                        }
+
+                        neighbours += this.grid[newRow][newCol];
+                    }
+                }
+
+                if (neighbours == 3) {
+                    return 1
+                }
+
+                if (neighbours == 2 && cellContents == 1) {
+                    return 1
+                }
+
+                return 0
+            }
+
+            //pause or unpause the board
+            changeState() {
+                if (this.state == "paused") {
+                    this.state = "playing";
+                }
+
+                else {
+                    this.state = "paused";
+                }
+            }
+
+            //draw the perimeter of the board and any alive cells 
+            drawBoard() {
+                context.fillStyle = "black";
+                context.beginPath();
+                context.rect(0, 0, this.columns * CELLSIZE, this.rows * CELLSIZE);
+                context.stroke();
+
+                for (var row = 0; row < this.rows; row++) {
+                    for (var col = 0; col < this.columns; col++) {
+                        if (this.grid[row][col]) {
+                            drawCell(col*CELLSIZE, row*CELLSIZE);
+                        }
+                    }
+                }
+            }
+
+            //add a piece to the board, a piece is a collection of cells
+            addPiece(piece, coords) {
+                let xCoord = coords[1];
+                let yCoord = coords[0];
+                let px = 0;
+                let py = 0;
+
+                for (let i = 0; i < piece.length; i++) {
+                    px = piece[i][1] + xCoord;
+                    py = piece[i][0] + yCoord;
+                    if (px >= 0 && px < this.columns) {
+                        if (py >= 0 && py < this.rows) {
+                            this.grid[py][px] = 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        //the menu that allows users to select pieces to add to the board 
+        class menu {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.pieces = [];
+                this.scrollPosition = 0;
+                this.boxSize = 180;
+                this.yOffset = 0;
+            }
+
+            //update the position of the scrolling piece menu while preventing users from going beyond the scope of available pieces
+            scrollMenu(scrollDirection) {
+                let deltaY = this.yOffset + (scrollDirection * this.boxSize);
+                if (deltaY < this.pieces.length * this.boxSize && deltaY >= 0) {
+                    this.yOffset = deltaY
+                }
+            }
+
+            //draw a box that hold a piece and draw the piece inside said box
+            drawItem(itemIndex) {
+                let xCentre = this.x + this.boxSize / 2;
+                let yCentre = (this.y + (itemIndex * this.boxSize) + this.boxSize / 2) - this.yOffset;
+                let itemCells = this.pieces[itemIndex];
+                drawMenuBox(this.x, this.y + (itemIndex * this.boxSize) - this.yOffset, this.boxSize)
+                drawPiece(xCentre, yCentre, itemCells)
+            }
+
+            //draw all of the boxes and pieces in the menu
+            drawMenu() {
+                for (let i = 0; i < this.pieces.length; i++) {
+                    this.drawItem(i);
+                }
+            }
+        }
+
+        //handles the position and contents of the cursor 
+        class cursor {
+            constructor() {
+                this.x = 0;
+                this.y = 0;
+                this.piece = null;
+            }
+
+            //if the user has selected a piece from the menu then this piece is rendered beneath the mouse cursor 
+            drawContents() {
+                if (this.piece != null) {
+                    drawPiece(this.x, this.y, this.piece)
+                }
+            }
+
+            //rotate the piece selected by the user by 90 degrees
+            rotateContents() {
+                let currentPiece = this.piece;
+                if (this.piece != null) {
+                    for (var i = 0; i < currentPiece.length; i++) {
+                        let tx = Math.cos(Math.PI / 2) * currentPiece[i][0] - Math.sin(Math.PI/2) * currentPiece[i][1]
+                        let ty = Math.sin(Math.PI / 2   ) * currentPiece[i][0] + Math.cos(Math.PI/2) * currentPiece[i][1]
+
+                        currentPiece[i][0] = Math.round(tx);
+                        currentPiece[i][1] = Math.round(ty);
+                    }
+                }
+            }
+        }
+
+        //draw a box 
+        function drawMenuBox(x, y, size) {
+            context.beginPath();
+            context.rect(x, y, size, size);
+            context.stroke();
+        }
+
+        //draw a cell
+        function drawCell(x, y) {
+            context.beginPath();
+            context.rect(x, y, CELLSIZE, CELLSIZE);
+            context.fill();
+        }
+
+        //draw the constituent cells of a piece
+        function drawPiece(x, y, cells) {
+            for (let i = 0; i < cells.length; i++) {
+                let currentCell = cells[i];
+                drawCell(x + currentCell[1] * CELLSIZE, y + currentCell[0] * CELLSIZE)
+            }
+        }
+
+        //clear the canvas and then draw all of the items on the canvas 
+        function renderCanvas() {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            gameBoard.drawBoard(gameBoard);
+            pieceMenu.drawMenu();
+            mousePointer.drawContents();
+        }
+
+        //update the state of the game and update the canvas
+        function main() {
+            gameBoard.updateBoard();
+            renderCanvas();
+            mousePointer.drawContents();
+            window.requestAnimationFrame(main);
+        }
+
+        var gameSpeedSlider = document.getElementById("gameSpeedSlider");
+        var gameSpeedText = document.getElementById("gameSpeed");
+
+        //the size of a cell in pixels 
+        var CELLSIZE = 10;
+
+        //create instances of all of the simulation objects, the board, menu, and cursor respectively
+        var gameBoard = new board(90, 160);
+        var pieceMenu = new menu(gameBoard.columns * CELLSIZE, 0);
+        var mousePointer = new cursor();
+
+        gameBoard.randomiseBoard();
+
+        //list of the pieces used by the piece menu
+        var pieceList = [[[0, 0], [0, -1], [0, 1]], [[0, 0], [0, 1], [1, 0], [1, 1]], [[0, 0], [0, 1], [1, 0], [1, -1]], [[0, 0], [0, 1], [1, 0], [1, -1], [-1, -1]],
+            [[0, 0], [0, 1], [0, -1], [1, 0], [-1, 0]], [[0, -1], [1, 0], [-1, 0], [1, 1], [-1, 1], [0, 2]]];
+        pieceMenu.pieces = pieceList;
+
+        //bind the gamespeed slider to the number of frames between each iteration
+        gameSpeedText.innerHTML = "<b>Frames between iterations: </b>" + gameBoard.iterationTime;
+        gameSpeedSlider.oninput = function () {
+            gameSpeedText.innerHTML = "<b>Frames between iterations: </b> " + this.value;
+            gameBoard.iterationTime = this.value;
+        }
+
+        //bind the event of the mouse moving to 
+        $(document).bind('mousemove', function (e) {
+            var rect = canvas.getBoundingClientRect();
+            mousePointer.x = ((e.clientX - rect.left) / (rect.right - rect.left) * canvas.width);
+            mousePointer.y = ((e.clientY - rect.top) / (rect.bottom - rect.top) * canvas.height);
+        })
+
+        //if the cursor is holding a piece and the r key is pressed the piece is rotated by 90 degrees
+        document.addEventListener("keydown", (e) => {
+            if (e.key == "r") {
+                mousePointer.rotateContents();
+            }
+        })
+
+        //when the left mouse button is pressed either change the state of the cell the user is hovering over or select a piece from the menu
+        //the that behaviour occurs is dependent on where the cursor is
+        document.addEventListener("mousedown", (e) => {
+            if (e.button == 0) {
+                let xCoord = Math.floor(mousePointer.x / CELLSIZE);
+                let yCoord = Math.floor(mousePointer.y / CELLSIZE);
+
+                if (xCoord > 0 && xCoord < gameBoard.columns) {
+                    if (yCoord > 0 && yCoord < gameBoard.rows) {
+                        gameBoard.grid[yCoord][xCoord] = gameBoard.grid[yCoord][xCoord] ? 0 : 1;
+                    }
+                }
+
+                if (xCoord >= 160 && xCoord <= 180) {
+                    let yIndex = Math.floor(yCoord / (pieceMenu.boxSize / 10));
+                    let tempVar = (pieceMenu.yOffset / CELLSIZE) / (pieceMenu.boxSize / 10);
+                    yIndex += Math.round(tempVar);
+                    mousePointer.piece = Object.assign([], pieceMenu.pieces[yIndex]);
+                }
+            }
+        })
+
+        //when the left mouse button is released and the user has selected a piece, then place that piece on the board and remove that piece
+        //from the cursor
+        document.addEventListener("mouseup", (e) => {
+            if (e.button == 0) {
+                if (mousePointer.piece != null) {
+                    gameBoard.addPiece(mousePointer.piece, [Math.round(mousePointer.y / CELLSIZE), Math.round(mousePointer.x / CELLSIZE)]);
+                }
+                mousePointer.piece = null;
+            }
+        })
+
+        //if the mousewheel is moved then scroll up/down the piece menu
+        document.addEventListener("wheel", event => {
+            const delta = Math.sign(event.deltaY);
+            pieceMenu.scrollMenu(delta);
+        });
+
+        //begin the loop
+        window.requestAnimationFrame(main);
+    </script>
+
+</body>
+</html>
